@@ -33,8 +33,11 @@ deepcode_codacy
 ```
 
 As discussed above, the tool needs to communicate with the DeepCode cloud instance and the `--net=none` option is not allowed (the analysis will timeout if provided).
+
 If the `-e TIMEOUT_SECONDS=...` option is not provided or is not an integer, the standard timeout will be used instead (900 seconds).
+
 If the `.codacyrc` file is not provided, all the files in the `/src` directory will be analyzed by default. Due to the lack of static patterns, the eventual patterns provided in the `.codacyrc` specification are ignored.
+
 If the `/src` volume is not correctly mounted, the tool will fail.
 
 ### Optional paraneters
@@ -50,20 +53,20 @@ The tool can exit with different codes, as per standard specification:
 For each file specified in the `.codacyrc` and not found in the `/src` directory, the tool prints a new line to stdout:
 ```json
 {
-  filename:<FILE-PATH-AS-SPECIFIED>,
-  message:"could not parse the file"
+  "filename":"<FILE-PATH-AS-SPECIFIED>",
+  "message":"could not parse the file"
 }
 ```
 
 For each suggestion reported by the analysis, the tool prints a new line to stdout:
 ```json
 {
-  filename:<FILE-PATH>,
-  line:<LINE-NUMBER>,
-  patternId:<ID_OF_THE_PATTERN>,
-  message:<MESSAGE_OF_THE_PATTERN>,
-  level:<LEVEL_OF_THE_PATTERN>,
-  category:<CATEGORY_OF_THE_PATTERN>
+  "filename":"<FILE-PATH>",
+  "line":"<LINE-NUMBER>",
+  "patternId":"<ID_OF_THE_PATTERN>",
+  "message":"<MESSAGE_OF_THE_PATTERN>",
+  "level":"<LEVEL_OF_THE_PATTERN>",
+  "category":"<CATEGORY_OF_THE_PATTERN>"
 }
 ```
-The `level` and `category` which would normally be provided by the static pattern configuration, are instead printed by the tool whenever it finds an occurrence of the same pattern. Also, given the lack of static documentation, no additional fields like the `title` or `description` are provided on top of the `message`.
+The `level` and `category` which would normally be provided by the static pattern configuration, are instead printed by the tool whenever it finds an occurrence of said pattern. Also, given the lack of static documentation, no additional fields like the `title` or `description` are provided on top of the `message`.
