@@ -16,10 +16,10 @@ then
 fi
 
 DEBUG=$(printenv DEBUG)
-if [ $DEBUG != 'true' ] ; then
-  exec 3>/dev/null
-else
+if [ "$DEBUG" == 'true' ] ; then
   exec 3>&2
+else
+  exec 3>/dev/null
 fi
 
 TIMEOUT=$(( $(printenv TIMEOUT_SECONDS) ))
