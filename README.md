@@ -38,7 +38,7 @@ If the `-e TIMEOUT_SECONDS=...` option is not provided or is not an integer, the
 
 If the `.codacyrc` file is not provided, all the files in the `/src` directory will be analyzed by default. Due to the lack of static patterns, the eventual patterns provided in the `.codacyrc` specification are ignored.
 
-If the `/src` volume is not correctly mounted, the tool will fail.
+If the `/src` volume is not correctly mounted, the tool will exit with a failure code.
 
 ### Optional paraneters
 It is possible to add the `-e DEBUG=true` option to log debug strings to stdout (no log is kept otherwise). 
