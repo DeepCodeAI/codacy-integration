@@ -1,6 +1,6 @@
 # DeepCode's Codacy integration tool
 
-This repository integrates DeepCode's (CLI)[https://pypi.org/project/deepcode/] into a (Codacy Tool)[https://github.com/codacy/codacy-example-tool/blob/master]
+This repository integrates DeepCode's [CLI](https://pypi.org/project/deepcode/) into a [Codacy Tool](https://github.com/codacy/codacy-example-tool/blob/master)
 
 ## Non-standard behaviours
 
