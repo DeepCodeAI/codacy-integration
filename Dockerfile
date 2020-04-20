@@ -22,5 +22,6 @@ RUN echo "{\"service_url\": \"https://www.deepcode.ai\", \"api_key\": \"$DEEPCOD
 
 RUN adduser -u 2004 -D docker
 RUN chown -R docker:docker /docs
+RUN chown -R docker:docker /dc
 
 CMD [ "bash", "/dc/tool.sh" ]

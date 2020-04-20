@@ -1,11 +1,35 @@
 #!/usr/bin/env bash
 
+# PARAMETERS
+
 CODACY_RC="/.codacyrc"
 FILES_DIR="/src"
 
 CONFIG_FILE="/dc/config.json"
 OUTPUT_FILE="/dc/output.json"
 ANALYSIS_DIR="/dc/src"
+
+if ! [ -d "$FILES_DIR" ]
+then
+  echo "$FILES_DIR directory not found."
+  exit 1
+fi
+ls -la "$FILES_DIR"
+
+DEBUG=$(printenv DEBUG)
+if [ $DEBUG != 'true' ] ; then
+  exec 3>/dev/null
+else
+  exec 3>&2
+fi
+
+TIMEOUT=$(( $(printenv TIMEOUT_SECONDS) ))
+if [ "$TIMEOUT" -eq 0 ] 2>&3; then
+  TIMEOUT=900
+fi
+
+echo "External environment variables: DEBUG=$DEBUG TIMEOUT=$TIMEOUT" >&3
+echo "DeepCode config file: "$(cat $CONFIG_FILE) >&3
 
 # SUPPORT FUNCTIONS
 
@@ -18,12 +42,6 @@ function load_src_files {
   codacy_files=$(cd $FILES_DIR || exit; find . -type f -exec echo {} \; | cut -c3-)
 }
 
-function report_error {
-  local file="$1"
-  local output="$2"
-  echo "{\"filename\":\"$file\",\"message\":\"found $output\",\"patternId\":\"foobar\",\"line\":1}"
-}
-
 function create_symlink {
   local file="$1"
   final_file="$FILES_DIR/$file"
@@ -33,13 +51,21 @@ function create_symlink {
     mkdir -p "$parent_dir"
     ln -s "$final_file" "$link_file"
   else
-    echo "{\"filename\":\"$final_file\",\"message\":\"could not parse the file\"}"
+    echo "{\"filename\":\"$file\",\"message\":\"could not parse the file\"}"
   fi
+}
+
+function report_error {
+  local file="$1"
+  local output="$2"
+  echo "{\"filename\":\"$file\",\"message\":\"found $output\",\"patternId\":\"foobar\",\"line\":1}"
 }
 
 # MAIN EXECUTION
 
 if [ -f /.codacyrc ]; then
+  echo "Found .codacyrc file, parsing..." >&3
+
   #parse
   codacyrc_file=$(jq -erM '.' < $CODACY_RC)
 
@@ -52,16 +78,19 @@ if [ -f /.codacyrc ]; then
   codacy_files=$(jq -cer '.files | .[]' <<< "$codacyrc_file")
   codacy_patterns=$(jq -cer '.tools | .[] | select(.name=="DeepCode") | .patterns | .[].patternId' <<< "$codacyrc_file")
 
-  # When no patterns supplied
+  # When no patterns are supplied
   if [ "$codacy_patterns" == "" ]; then
+    echo "Found no patterns in the .codacyrc file, using default configuration." >&3
     load_config_file
   fi
 
-  # When no files given, run with all files in /src
+  # When no files are supplied, run with all files in /src
   if [ "$codacy_files" == "" ]; then
+    echo "Found no files in the .codacyrc file, using default configuration." >&3
     load_src_files
   fi
 else
+  echo "Found no .codacyrc file, using default configuration." >&3
   load_config_file
   load_src_files
 fi
@@ -71,6 +100,7 @@ fi
 # more efficient, but bash has a limitation on the total length of arguments a
 # command can have, and batching the paths would result in hundreds of parallel
 # CLI executions which defies the purpose of having a CLI already managing it.
+echo "Creating symbolic links for the analysis." >&3
 rm -rf "$ANALYSIS_DIR"
 mkdir -p "$ANALYSIS_DIR"
 while read -r file; do
@@ -78,46 +108,49 @@ while read -r file; do
 done <<< "$codacy_files"
 
 # Spawn a child process for the analysis
-(deepcode -c "$CONFIG_FILE" analyze -l -s -p "$ANALYSIS_DIR" 2>/dev/null >"$OUTPUT_FILE")&
+echo "Spawning analysis child process." >&3
+(deepcode -c "$CONFIG_FILE" analyze -l -s -p "$ANALYSIS_DIR" 2>&3 >"$OUTPUT_FILE")&
 analysis_pid=$!
 
-# in the background, sleep for 10 mins (600 secs) then kill the analysis process.
-# Athough the requested maximum timeout is 15 minutes, it's better to be stricter
-# since we also require time to prepare the analysis dir and to parse the output.
-(sleep 600 && kill -9 $analysis_pid)&
+# in the background, sleep for $TIMEOUT secs then kill the analysis process.
+echo "Spawning timeout child process." >&3
+(sleep $TIMEOUT && kill -9 $analysis_pid)&
 waiter_pid=$!
 
 # wait on our worker process and return the exitcode
-wait $analysis_pid 2>/dev/null
-exitcode=$?
+echo "Waiting for the analysis to finish." >&3
+wait $analysis_pid 2>&3
+analysis_exitcode=$?
 
 # kill the waiter subshell, if it still runs
-kill -9 $waiter_pid 2>/dev/null
+kill -9 $waiter_pid 2>&3
 # 0 if we killed the waiter, cause that means the process finished before the waiter
-finished_gracefully=$?
+timeout_exitcode=$?
 # avoid child termination message in the output
-wait $waiter_pid 2>/dev/null
+wait $waiter_pid 2>&3
 
 
 # TEST EXIT CODES AND OUTPUT FILE
+echo "Analysis results: analysis_exitcode=$analysis_exitcode, timeout_exitcode=$timeout_exitcode." >&3
 
-if [ $finished_gracefully -ne 0 ]; then
+if [ $timeout_exitcode -ne 0 ]; then
   echo "Analysis timed out"
   exit 2
 fi
 
-if [ $exitcode -gt 1 ] || [ ! -s "$OUTPUT_FILE" ]; then
+if [ $analysis_exitcode -gt 1 ] || [ ! -s "$OUTPUT_FILE" ]; then
   echo "Analysis failed"
   exit 1
 fi
 
-if [ $exitcode -eq 0 ]; then
+if [ $analysis_exitcode -eq 0 ]; then
   # Analysis succeeded, but there is nothing to report
   exit 0
 fi
 
 
 # FORMAT OUTPUT
+echo "Converting DeepCode output to Codacy format." >&3
 
 declare -A RULEMAP
 
@@ -157,4 +190,5 @@ while read -r file_path; do
   done <<< "$s_indexes"
 done <<< "$file_indexes"
 
+echo "Success." >&3
 exit 0
