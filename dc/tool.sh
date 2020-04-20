@@ -14,7 +14,6 @@ then
   echo "$FILES_DIR directory not found."
   exit 1
 fi
-ls -la "$FILES_DIR"
 
 DEBUG=$(printenv DEBUG)
 if [ $DEBUG != 'true' ] ; then
